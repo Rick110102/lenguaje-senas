@@ -1,7 +1,7 @@
 """
-Etapa 5: Inferencia en tiempo real.
-Carga el modelo entrenado y predice la letra en vivo a partir de
-los landmarks detectados por la webcam.
+Etapa 5 (v2): Inferencia en tiempo real, con landmarks normalizados.
+Carga el modelo entrenado y predice la letra en vivo, usando la
+misma normalizacion que se uso al recolectar el dataset.
 """
 
 import pickle
@@ -9,17 +9,12 @@ import pickle
 import cv2
 import mediapipe as mp
 
+from utils import normalize_landmarks
+
 MODEL_PATH = "models/sign_classifier.pkl"
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
-
-
-def landmarks_to_features(hand_landmarks):
-    features = []
-    for lm in hand_landmarks.landmark:
-        features.extend([lm.x, lm.y, lm.z])
-    return features
 
 
 def main():
@@ -56,7 +51,7 @@ def main():
                     frame, hand_landmarks, mp_hands.HAND_CONNECTIONS
                 )
 
-                features = landmarks_to_features(hand_landmarks)
+                features = normalize_landmarks(hand_landmarks)
                 prediction = model.predict([features])[0]
 
                 probabilities = model.predict_proba([features])[0]

@@ -1,30 +1,23 @@
 """
-Etapa 3: Construccion del dataset.
-Recolecta landmarks de la mano para cada letra del alfabeto que
-queremos reconocer, y los guarda etiquetados en un archivo CSV.
+Etapa 3 (v2): Construccion del dataset, con landmarks normalizados.
+Recolecta landmarks de la mano para cada letra y los guarda
+etiquetados en un archivo CSV, ya normalizados (posicion relativa
+a la muneca, escalados por tamano de mano).
 """
 
 import csv
-import os
 
 import cv2
 import mediapipe as mp
 
-# Letras a recolectar. Cambia esta lista si quieres otro set.
-LETTERS = ["A", "B", "C", "F", "I", "L", "O", "Y"]
+from utils import normalize_landmarks
 
-SAMPLES_PER_LETTER = 30
+LETTERS = ["A", "B", "C", "F", "I", "L", "O", "Y"]
+SAMPLES_PER_LETTER = 60
 OUTPUT_CSV = "dataset.csv"
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
-
-
-def landmarks_to_row(hand_landmarks, label):
-    row = [label]
-    for lm in hand_landmarks.landmark:
-        row.extend([lm.x, lm.y, lm.z])
-    return row
 
 
 def main():
@@ -33,16 +26,15 @@ def main():
         print("No se pudo acceder a la webcam.")
         return
 
-    # Si el archivo no existe, escribimos el encabezado primero
-    file_exists = os.path.exists(OUTPUT_CSV)
-    csv_file = open(OUTPUT_CSV, mode="a", newline="")
+    # Empezamos el CSV desde cero para no mezclar datos viejos (sin
+    # normalizar) con los nuevos (normalizados)
+    csv_file = open(OUTPUT_CSV, mode="w", newline="")
     writer = csv.writer(csv_file)
 
-    if not file_exists:
-        header = ["label"]
-        for i in range(21):
-            header.extend([f"x{i}", f"y{i}", f"z{i}"])
-        writer.writerow(header)
+    header = ["label"]
+    for i in range(21):
+        header.extend([f"x{i}", f"y{i}", f"z{i}"])
+    writer.writerow(header)
 
     with mp_hands.Hands(
         max_num_hands=1,
@@ -54,7 +46,6 @@ def main():
             print(f"\nSiguiente letra: {letter}")
             print("Posiciona tu mano y presiona 's' para empezar a grabar.")
 
-            # Esperar a que el usuario presione 's' para esta letra
             waiting = True
             while waiting:
                 ret, frame = cap.read()
@@ -77,7 +68,6 @@ def main():
                     csv_file.close()
                     return
 
-            # Grabar SAMPLES_PER_LETTER muestras para esta letra
             collected = 0
             while collected < SAMPLES_PER_LETTER:
                 ret, frame = cap.read()
@@ -94,13 +84,17 @@ def main():
                         frame, hand_landmarks, mp_hands.HAND_CONNECTIONS
                     )
 
-                    row = landmarks_to_row(hand_landmarks, letter)
-                    writer.writerow(row)
+                    features = normalize_landmarks(hand_landmarks)
+                    writer.writerow([letter] + features)
                     collected += 1
 
                 cv2.putText(
                     frame, f"Grabando '{letter}': {collected}/{SAMPLES_PER_LETTER}",
                     (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2,
+                )
+                cv2.putText(
+                    frame, "Mueve un poco la mano: angulo, distancia, posicion",
+                    (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2,
                 )
                 cv2.imshow("Etapa 3 - Recoleccion de dataset", frame)
                 cv2.waitKey(1)
